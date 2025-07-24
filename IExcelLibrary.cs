@@ -129,6 +129,9 @@ namespace OutSystems.ExternalLib.Excel {
                 [OSAction(ReturnName = "ExcelFile", OriginalName = "Row_Height", IconResourceName = "ODCExcelLibrary.resources.excel.png", Description = "Set Row Height on specific Row Index")]
                 public byte[] Row_Height(byte[] excelBinary, [OSParameter(DataType = OSDataType.Integer, Description = "Row Index start from 1")] int rowIndex, int rowHeight = 20, string? sheetName = null);
 
+                [OSAction(ReturnName = "ExcelFile", OriginalName = "Row_AutoHeight", IconResourceName = "ODCExcelLibrary.resources.excel.png", Description = "Set Row Auto Height")]
+                public byte[] Row_AutoHeight(byte[] excelBinary, [OSParameter(DataType = OSDataType.Integer, Description = "Row Index start from 1")] int rowStart, int rowEnd, string? sheetName = null);
+
                 // ============================================================
                 // Public Method Implementation Interface - Data Validations
                 // ============================================================

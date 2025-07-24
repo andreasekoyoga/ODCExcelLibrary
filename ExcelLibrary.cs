@@ -1014,11 +1014,26 @@ public class ExcelLibrary : IExcelLibrary
 
     }
 
-// ============================================================
-// Public Method Implementation Interface - Data Validations
-// ============================================================
+    public byte[] Row_AutoHeight(byte[] excelBinary, int rowStart, int rowEnd, string? sheetName = null)
+    { 
+        if(rowEnd < rowStart) return excelBinary;
+        using (var package = Excel_Open(excelBinary))
+        {
+            ExcelWorksheet worksheet = Worksheet_Select(package, sheetName);
+            for (int i = rowStart; i <= rowEnd; i++)
+            { 
+                worksheet.Rows[i].CustomHeight = false; 
+            }
+            return package.GetAsByteArray();
+        }        
+    }
 
-    private IExcelDataValidation Data_Validation_Config(ExcelWorksheet excelWorksheet, string Address, DataValidationConfig dataValidationConfig) {
+// ============================================================
+    // Public Method Implementation Interface - Data Validations
+    // ============================================================
+
+    private IExcelDataValidation Data_Validation_Config(ExcelWorksheet excelWorksheet, string Address, DataValidationConfig dataValidationConfig)
+    {
 
         IExcelDataValidation validation = excelWorksheet.DataValidations[Address];
 
@@ -1027,11 +1042,15 @@ public class ExcelLibrary : IExcelLibrary
         if (dataValidationConfig.ErrorStyle.ToLower() == "information")
         {
             validation.ErrorStyle = ExcelDataValidationWarningStyle.information;
-        } else {
+        }
+        else
+        {
             if (dataValidationConfig.ErrorStyle.ToLower() == "stop")
             {
                 validation.ErrorStyle = ExcelDataValidationWarningStyle.stop;
-            } else {
+            }
+            else
+            {
                 validation.ErrorStyle = ExcelDataValidationWarningStyle.warning;
             }
         }
