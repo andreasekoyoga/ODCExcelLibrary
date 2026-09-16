@@ -9,11 +9,35 @@ using Newtonsoft.Json;
 using OfficeOpenXml.DataValidation;
 using OfficeOpenXml.DataValidation.Contracts;
 using OutSystems.ExternalLibraries.SDK;
+using System.Xml;
 
 namespace OutSystems.ExternalLib.Excel;
 
 public class ExcelLibrary : IExcelLibrary
 {
+
+    private ExcelPackage EnsureWorkbookViewId(ExcelPackage pkg)
+    {
+        const string ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        foreach (var ws in pkg.Workbook.Worksheets)
+        {
+            var doc = ws.WorksheetXml;
+            var nsm = new XmlNamespaceManager(doc.NameTable);
+            nsm.AddNamespace("d", ns);
+            var sheetViews = doc.SelectNodes("//d:sheetViews/d:sheetView", nsm);
+            if (sheetViews == null)
+                continue;
+
+            foreach (XmlElement sv in sheetViews)
+            {
+                if (!sv.HasAttribute("workbookViewId"))
+                    sv.SetAttribute("workbookViewId", "0");
+            }
+        }
+
+        return pkg;
+    }
+
     private int columnNumber(String columnName)
     {
         char[] chars = columnName.ToUpper().ToCharArray();
@@ -56,7 +80,7 @@ public class ExcelLibrary : IExcelLibrary
             throw new System.Exception("Excel File Invalid Format!", exception);
         }
 
-        return package;
+        return EnsureWorkbookViewId(package);
     }
 
     private ExcelWorksheet Worksheet_Select(ExcelPackage package, string? sheetName)
@@ -101,7 +125,8 @@ public class ExcelLibrary : IExcelLibrary
                 sheetName = Next_SheetName(package);
                 package.Workbook.Worksheets.Add(sheetName);
             }
-            return package.GetAsByteArray();
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -372,14 +397,16 @@ public class ExcelLibrary : IExcelLibrary
             package.Workbook.Properties.Keywords = workbookProperties.Keywords ?? "";
             
             if(workbookProperties.KeyValues == null) {
-                return package.GetAsByteArray();
+                package.Save();
+                return EnsureWorkbookViewId(package).GetAsByteArray();
             }
 
             foreach(KeyValue keyValue in workbookProperties.KeyValues) {
                 package.Workbook.Properties.SetCustomPropertyValue(keyValue.Key, keyValue.Value);
             }
 
-            return package.GetAsByteArray();
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }    
     }
 
@@ -424,7 +451,8 @@ public class ExcelLibrary : IExcelLibrary
         {
             ExcelWorksheet worksheet = Worksheet_Select(package, sheetName);
             worksheet.Cells.AutoFitColumns();
-            return package.GetAsByteArray();
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -434,7 +462,8 @@ public class ExcelLibrary : IExcelLibrary
         {
             ExcelWorksheet worksheet = Worksheet_Select(package, sheetName);
             worksheet.Calculate();
-            return package.GetAsByteArray();
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }   
 
@@ -471,7 +500,8 @@ public class ExcelLibrary : IExcelLibrary
 
             worksheet.Protection.SetPassword(password);
 
-            return package.GetAsByteArray();
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }        
     }
 
@@ -484,15 +514,19 @@ public class ExcelLibrary : IExcelLibrary
             try {
                 excelRanges = Cell_Selections(package, startCellRow, startCellColumn, endCellRow, endCellColumn, cellName ?? "", sheetName);
             } catch {
-                return package.GetAsByteArray();
+                package.Save();
+                return EnsureWorkbookViewId(package).GetAsByteArray();
             }
 
             if(excelRanges == null) {
-                return package.GetAsByteArray();
+                package.Save();
+                return EnsureWorkbookViewId(package).GetAsByteArray();
             }
 
             excelRanges.AutoFilter = true;
-            return package.GetAsByteArray();
+            
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -506,7 +540,9 @@ public class ExcelLibrary : IExcelLibrary
                 ExcelWorksheet worksheet = Worksheet_Select(package, sheetName);
                 package.Workbook.Worksheets.Delete(worksheet.Index);
             }
-            return package.GetAsByteArray();        
+            
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();        
         }
     }
 
@@ -522,7 +558,8 @@ public class ExcelLibrary : IExcelLibrary
                 worksheet.Name = newSheetName;
             }
 
-            return package.GetAsByteArray();
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }   
     }
 
@@ -541,7 +578,9 @@ public class ExcelLibrary : IExcelLibrary
             } else {
                 worksheet.Hidden = OfficeOpenXml.eWorkSheetHidden.Hidden;
             }
-            return package.GetAsByteArray();
+            
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }        
     }
 
@@ -653,17 +692,22 @@ public class ExcelLibrary : IExcelLibrary
                     excelRanges = Cell_Selections(package, cellMerge.CellRange.StartCellRow, cellMerge.CellRange.StartCellColumn, cellMerge.CellRange.EndCellRow, cellMerge.CellRange.EndCellColumn, cellMerge.CellName ?? "", cellMerge.SheetName);
 
                 } catch {
-                    return package.GetAsByteArray();
+                    
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
 
                 if(excelRanges == null) {
-                    return package.GetAsByteArray();
+                    
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
 
                 excelRanges.Merge = true;
             }
 
-            return package.GetAsByteArray();
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -677,17 +721,20 @@ public class ExcelLibrary : IExcelLibrary
                     excelRanges = Cell_Selections(package, cellUnMerge.CellRange.StartCellRow, cellUnMerge.CellRange.StartCellColumn, cellUnMerge.CellRange.EndCellRow, cellUnMerge.CellRange.EndCellColumn, cellUnMerge.CellName ?? "", cellUnMerge.SheetName);
 
                 } catch {
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
 
                 if(excelRanges == null) {
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
 
                 excelRanges.Merge = false;
             }
 
-            return package.GetAsByteArray();
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -703,11 +750,13 @@ public class ExcelLibrary : IExcelLibrary
                     excelRanges = Cell_Selections(package, cellWrite.Cell.CellRow, cellWrite.Cell.CellColumn, 0, 0, cellWrite.CellName ?? "", cellWrite.SheetName);
 
                 } catch {
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 } 
                 
                 if(excelRanges == null) {
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                     
                 }
 
@@ -753,7 +802,8 @@ public class ExcelLibrary : IExcelLibrary
                 return Cell_Copy(package.GetAsByteArray(), cellCopy.GetValueOrDefault());
             }
 
-            return package.GetAsByteArray();
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }        
     }
 
@@ -766,7 +816,8 @@ public class ExcelLibrary : IExcelLibrary
             ExcelRange? sourceExcelRange = Cell_Selections(package, cellCopy.SourceCell.CellRow, cellCopy.SourceCell.CellColumn, 0,0, cellCopy.SourceCellName, cellCopy.SheetName);
 
             if(sourceExcelRange == null) {
-                return package.GetAsByteArray();
+                package.Save();
+                return EnsureWorkbookViewId(package).GetAsByteArray();
             }
 
             int sourceRow = sourceExcelRange.Start.Row;
@@ -775,7 +826,8 @@ public class ExcelLibrary : IExcelLibrary
             ExcelRange? destExcelRange = Cell_Selections(package, cellCopy.DestinationCell.StartCellRow, cellCopy.DestinationCell.StartCellColumn, cellCopy.DestinationCell.EndCellRow, cellCopy.DestinationCell.EndCellColumn, cellCopy.DestinationCellName, cellCopy.SheetName);
 
             if(destExcelRange == null) {
-                return package.GetAsByteArray();
+                package.Save();
+                return EnsureWorkbookViewId(package).GetAsByteArray();
             }
 
             int destStartRow = destExcelRange.Start.Row;
@@ -795,7 +847,8 @@ public class ExcelLibrary : IExcelLibrary
                 countRow++;
             }
 
-            return package.GetAsByteArray();        
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();        
         }
     }
 
@@ -852,11 +905,13 @@ public class ExcelLibrary : IExcelLibrary
                 try {
                     excelRanges = Cell_Selections(package, cellWriteRichText.Cell.CellRow, cellWriteRichText.Cell.CellColumn, 0, 0, cellWriteRichText.CellName ?? "", cellWriteRichText.SheetName);
                 } catch {
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
                 
                 if(excelRanges == null) {
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
 
                 excelRanges.IsRichText = true;
@@ -887,7 +942,9 @@ public class ExcelLibrary : IExcelLibrary
 
                 // Console.WriteLine("R: " + excelRanges.Value);
             }
-            return package.GetAsByteArray();
+            
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -902,7 +959,9 @@ public class ExcelLibrary : IExcelLibrary
         {
             ExcelWorksheet worksheet = Worksheet_Select(package, sheetName);
             worksheet.DeleteColumn(colIndex);
-            return package.GetAsByteArray();
+            
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -913,7 +972,9 @@ public class ExcelLibrary : IExcelLibrary
         {
             ExcelWorksheet worksheet = Worksheet_Select(package, sheetName);
             worksheet.Columns[colIndex].Hidden = isShow;
-            return package.GetAsByteArray();
+            
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -937,7 +998,8 @@ public class ExcelLibrary : IExcelLibrary
                 }
             }
 
-            return package.GetAsByteArray();
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -948,7 +1010,9 @@ public class ExcelLibrary : IExcelLibrary
         {
             ExcelWorksheet worksheet = Worksheet_Select(package, sheetName);
             worksheet.Columns[colIndex].Width = colWidth;
-            return package.GetAsByteArray();
+            
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }    
 
@@ -963,7 +1027,9 @@ public class ExcelLibrary : IExcelLibrary
         {
             ExcelWorksheet worksheet = Worksheet_Select(package, sheetName);
             worksheet.DeleteRow(rowIndex);
-            return package.GetAsByteArray();
+
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -974,7 +1040,9 @@ public class ExcelLibrary : IExcelLibrary
         {
             ExcelWorksheet worksheet = Worksheet_Select(package, sheetName);
             worksheet.Rows[rowIndex].Hidden = isShow;
-            return package.GetAsByteArray();
+
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -997,7 +1065,9 @@ public class ExcelLibrary : IExcelLibrary
                     worksheet.Rows[rowIndex].Height = rowHeight;
                 }
             }
-            return package.GetAsByteArray();
+
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -1009,7 +1079,8 @@ public class ExcelLibrary : IExcelLibrary
             ExcelWorksheet worksheet = Worksheet_Select(package, sheetName);
             worksheet.Rows[rowIndex].Height = rowHeight;
 
-            return package.GetAsByteArray();
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
 
     }
@@ -1024,7 +1095,9 @@ public class ExcelLibrary : IExcelLibrary
             { 
                 worksheet.Rows[i].CustomHeight = false; 
             }
-            return package.GetAsByteArray();
+
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }        
     }
 
@@ -1100,11 +1173,13 @@ public class ExcelLibrary : IExcelLibrary
                 targetExcelRange = Cell_Selections(package, cellDataValidation.CellRange.StartCellRow, cellDataValidation.CellRange.StartCellColumn, cellDataValidation.CellRange.EndCellRow, cellDataValidation.CellRange.EndCellColumn, cellDataValidation.CellName, cellDataValidation.SheetName);
 
             } catch {
-                return package.GetAsByteArray();
+                package.Save();
+                return EnsureWorkbookViewId(package).GetAsByteArray();
             }
 
             if(targetExcelRange == null) {
-                return package.GetAsByteArray();
+                package.Save();
+                return EnsureWorkbookViewId(package).GetAsByteArray();
             }
 
             worksheet.DataValidations.AddIntegerValidation(targetExcelRange.Address);
@@ -1138,7 +1213,8 @@ public class ExcelLibrary : IExcelLibrary
                     throw new System.NullReferenceException("Data Validation Operator is not valid!");
                 }
 
-            return package.GetAsByteArray();
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -1178,11 +1254,13 @@ public class ExcelLibrary : IExcelLibrary
             try {
                 targetExcelRange = Cell_Selections(package, cellDataValidation.CellRange.StartCellRow, cellDataValidation.CellRange.StartCellColumn, cellDataValidation.CellRange.EndCellRow, cellDataValidation.CellRange.EndCellColumn, cellDataValidation.CellName, cellDataValidation.SheetName);
             } catch {
-                return package.GetAsByteArray();
+                package.Save();
+                return EnsureWorkbookViewId(package).GetAsByteArray();
             }
 
             if(targetExcelRange == null) {
-                return package.GetAsByteArray();
+                package.Save();
+                return EnsureWorkbookViewId(package).GetAsByteArray();
             }
 
 
@@ -1217,7 +1295,8 @@ public class ExcelLibrary : IExcelLibrary
                     throw new System.NullReferenceException("Data Validation Operator is not valid!");
                 }
 
-            return package.GetAsByteArray();
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -1258,11 +1337,13 @@ public class ExcelLibrary : IExcelLibrary
                 targetExcelRange = Cell_Selections(package, cellDataValidation.CellRange.StartCellRow, cellDataValidation.CellRange.StartCellColumn, cellDataValidation.CellRange.EndCellRow, cellDataValidation.CellRange.EndCellColumn, cellDataValidation.CellName, cellDataValidation.SheetName);
 
             } catch {
-                return package.GetAsByteArray();
+                package.Save();
+                return EnsureWorkbookViewId(package).GetAsByteArray();
             }
 
             if(targetExcelRange == null) {
-                return package.GetAsByteArray();
+                package.Save();
+                return EnsureWorkbookViewId(package).GetAsByteArray();
             }
 
 
@@ -1297,7 +1378,8 @@ public class ExcelLibrary : IExcelLibrary
                     throw new System.NullReferenceException("Data Validation Operator is not valid!");
                 }
 
-            return package.GetAsByteArray();
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }   
 
@@ -1314,11 +1396,13 @@ public class ExcelLibrary : IExcelLibrary
             try {
                 targetExcelRange = Cell_Selections(package, cellDataValidation.CellRange.StartCellRow, cellDataValidation.CellRange.StartCellColumn, cellDataValidation.CellRange.EndCellRow, cellDataValidation.CellRange.EndCellColumn, cellDataValidation.CellName, cellDataValidation.SheetName);
             } catch {
-                return package.GetAsByteArray();
+                package.Save();
+                return EnsureWorkbookViewId(package).GetAsByteArray();
             }
             
             if(targetExcelRange == null) {
-                return package.GetAsByteArray();
+                package.Save();
+                return EnsureWorkbookViewId(package).GetAsByteArray();
             }
 
             worksheet.DataValidations.AddListValidation(targetExcelRange.Address);
@@ -1327,7 +1411,8 @@ public class ExcelLibrary : IExcelLibrary
             if(dataValidationListItem.IsUsingItemFormula) {
                 if (dataValidationListItem.ItemFormula != "") {
                     validation.Formula.ExcelFormula = dataValidationListItem.ItemFormula;                    
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
             } else {
                 if(dataValidationListItem.ItemList != null) {
@@ -1335,7 +1420,9 @@ public class ExcelLibrary : IExcelLibrary
                     {
                         validation.Formula.Values.Add(dataValidationListItem.ItemList[i]);
                     }
-                    return package.GetAsByteArray();    
+                    
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();    
                 } else {
                     throw new System.NullReferenceException("Item List is Empty!");
                 }
@@ -1359,15 +1446,19 @@ public class ExcelLibrary : IExcelLibrary
                     excelRanges = Cell_Selections(package, rangeFormat.CellRange.StartCellRow, rangeFormat.CellRange.StartCellColumn, rangeFormat.CellRange.EndCellRow, rangeFormat.CellRange.EndCellColumn, rangeFormat.CellName ?? "", rangeFormat.SheetName);
 
                 } catch {
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
                 
                 if(excelRanges == null) {
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
                 Cell_Format(excelRanges, rangeFormat.CellFormat);
             }
-            return package.GetAsByteArray();
+            
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -1381,17 +1472,21 @@ public class ExcelLibrary : IExcelLibrary
                 try {
                     excelRanges = Cell_Selections(package, rangeBorderFormat.CellRange.StartCellRow, rangeBorderFormat.CellRange.StartCellColumn, rangeBorderFormat.CellRange.EndCellRow, rangeBorderFormat.CellRange.EndCellColumn, rangeBorderFormat.CellName ?? "", rangeBorderFormat.SheetName);
                 } catch {
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
 
                 ExcelWorksheet worksheet = Worksheet_Select(package, rangeBorderFormat.SheetName);
                 if(excelRanges == null) {
                     // Console.WriteLine("Range Null");
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
                 worksheet = Border_Format(excelRanges, rangeBorderFormat.borderStyleFormat);
             }
-            return package.GetAsByteArray();
+            
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -1461,12 +1556,14 @@ public class ExcelLibrary : IExcelLibrary
                 try {
                     excelRanges = Cell_Selections(package, dataWriteJSON.Cell.CellRow, dataWriteJSON.Cell.CellColumn, 0, 0, dataWriteJSON.CellName ?? "", dataWriteJSON.SheetName);
                 } catch {
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
                 
                 
                 if(excelRanges == null) {
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
 
                 ExcelRangeBase tableRange = excelRanges.LoadFromDictionaries(jsonItems, c =>
@@ -1490,7 +1587,9 @@ public class ExcelLibrary : IExcelLibrary
                     tableRange.AutoFitColumns();
                 }                
             }
-            return package.GetAsByteArray();
+
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -1506,11 +1605,13 @@ public class ExcelLibrary : IExcelLibrary
             try {
                 excelRanges = Cell_Selections(package, cellRow, cellColumn, 0, 0, cellName ?? "", sheetName);
             } catch {
-                return package.GetAsByteArray();
+                package.Save();
+                return EnsureWorkbookViewId(package).GetAsByteArray();
             }
             
             if(excelRanges == null) {
-                return package.GetAsByteArray();
+                package.Save();
+                return EnsureWorkbookViewId(package).GetAsByteArray();
             }
 
             Stream stream = new MemoryStream(imageFile);
@@ -1528,7 +1629,8 @@ public class ExcelLibrary : IExcelLibrary
                 pic.SetSize(imageSizePercent);  
             }
             
-            return package.GetAsByteArray();
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -1754,18 +1856,22 @@ public class ExcelLibrary : IExcelLibrary
                 }
                 catch
                 {
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
 
                 if (excelRanges == null)
                 {
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
 
                 excelRanges.AddComment(commentAdd.Text, commentAdd.Author);
 
             }
-            return package.GetAsByteArray();
+
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }
     }
 
@@ -1781,17 +1887,21 @@ public class ExcelLibrary : IExcelLibrary
                 try {
                     excelRanges = Cell_Selections(package, commentDelete.Cell.CellRow, commentDelete.Cell.CellColumn, 0, 0, commentDelete.CellName ?? "", commentDelete.SheetName);
                 } catch {
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
                 
                 if(excelRanges == null) {
-                    return package.GetAsByteArray();
+                    package.Save();
+                    return EnsureWorkbookViewId(package).GetAsByteArray();
                 }
 
                 worksheet.Comments.Remove(excelRanges.Comment);
 
             }
-            return package.GetAsByteArray();
+            
+            package.Save();
+            return EnsureWorkbookViewId(package).GetAsByteArray();
         }        
     }
 
